@@ -34,6 +34,7 @@ def bfs(root_node: Node, move_order):
         for move in move_order:
             if is_move_available(move=move, empty_field_coordinates=current_node.state.empty_field):
                 neighbour = current_node.make_move(move)
+                max_depth = max(max_depth, neighbour.depth)
 
                 if neighbour not in visited:
                     if is_goal(neighbour.state.board, FINAL_STATE_BOARD):
@@ -43,12 +44,10 @@ def bfs(root_node: Node, move_order):
                             "processed": processed,
                             "max_depth": max_depth,
                             "time": round(time() - start_time, 5)
-                            # "time": time() - start_time
                         }
 
                     visited.add(neighbour)
                     queue.append(neighbour)
-                    max_depth = max(max_depth, neighbour.depth) # wyzej
             else:
                 continue # jesli ruchy wykraczaja poza plansze to je ignorujemy
 
@@ -74,47 +73,48 @@ def dfs(root_node: Node, move_order, max_depth_limit=20):
             "time": round(time() - start_time, 5)
         }
 
-    stack = list()  # lista stanow otwartych
-    visited = set() # lista stanow zamknietych
-
-    stack.append(root_node)
-
+    stack = [root_node]  # lista stanow otwartych
+    closed = set() # lista stanow zamknietych
+    # stack.append(root_node)
     processed = 0
     max_depth = 0
 
     while stack:
         current_node = stack.pop()
-        processed += 1
 
-        if current_node not in visited:
-            visited.add(current_node)
+        if current_node in closed:
+            continue
 
-            current_depth = current_node.depth
-            max_depth = max(max_depth, current_depth)
+        closed.add(current_node)
 
-            if current_depth >= max_depth_limit:
+        current_depth = current_node.depth
+        max_depth = max(max_depth, current_depth)
+
+        if current_depth >= max_depth_limit:
+            continue
+
+        processed += 1 # wezel jest przetwarzany
+
+        for move in reversed(move_order):
+            if is_move_available(move=move, empty_field_coordinates=current_node.state.empty_field):
+                neighbour = current_node.make_move(move)
+
+                if neighbour not in closed:
+                    if is_goal(neighbour.state.board, FINAL_STATE_BOARD):
+                        return {
+                            "solution": get_node_path(neighbour),
+                            "visited": len(closed) + 1,
+                            "processed": processed,
+                            "max_depth": max(max_depth, neighbour.depth),
+                            "time": round(time() - start_time, 5)
+                        }
+                    stack.append(neighbour)
+            else:
                 continue
-
-            for move in reversed(move_order):
-                if is_move_available(move=move, empty_field_coordinates=current_node.state.empty_field):
-                    neighbour = current_node.make_move(move)
-
-                    if neighbour not in visited:
-                        if is_goal(neighbour.state.board, FINAL_STATE_BOARD):
-                            return {
-                                "solution": get_node_path(neighbour),
-                                "visited": len(visited),
-                                "processed": processed,
-                                "max_depth": max(max_depth, neighbour.depth),
-                                "time": round(time() - start_time, 5)
-                            }
-                        stack.append(neighbour)
-                else:
-                    continue
     # return FAILURE
     return {
         "solution": None,
-        "visited": len(visited),
+        "visited": len(closed),
         "processed": processed,
         "max_depth": max_depth,
         "time": round(time() - start_time, 5)
@@ -138,6 +138,11 @@ def astr(root_node: Node, heuristic_type='hamm'):
 
     while priority_queue:
         _, _, current_node = heapq.heappop(priority_queue)
+
+        if current_node in visited:
+            continue
+
+        visited.add(current_node)
         processed += 1
 
         # return SUCCESS
@@ -150,21 +155,18 @@ def astr(root_node: Node, heuristic_type='hamm'):
                 "time": round(time() - start_time, 5)
             }
 
-        if current_node not in visited:
-            visited.add(current_node)
+        for move in 'LRUD':
+            if is_move_available(move=move, empty_field_coordinates=current_node.state.empty_field):
+                neighbour = current_node.make_move(move)
 
-            for move in 'LRUD':
-                if is_move_available(move=move, empty_field_coordinates=current_node.state.empty_field):
-                    neighbour = current_node.make_move(move)
-
-                    if neighbour not in visited:
-                        if heuristic_type == 'hamm':
-                            f = neighbour.depth + hamming_metric(neighbour.state.board, FINAL_STATE_BOARD)
-                        elif heuristic_type == 'manh':
-                            f = neighbour.depth + manhattan_metric(neighbour.state.board, FINAL_STATE_BOARD)
-                        heapq.heappush(priority_queue, (f, counter, neighbour))
-                        counter += 1
-                        max_depth = max(max_depth, neighbour.depth)
+                if neighbour not in visited:
+                    if heuristic_type == 'hamm':
+                        f = neighbour.depth + hamming_metric(neighbour.state.board, FINAL_STATE_BOARD)
+                    elif heuristic_type == 'manh':
+                        f = neighbour.depth + manhattan_metric(neighbour.state.board, FINAL_STATE_BOARD)
+                    heapq.heappush(priority_queue, (f, counter, neighbour))
+                    counter += 1
+                    max_depth = max(max_depth, neighbour.depth)
 
     # return FAILURE
     return {
